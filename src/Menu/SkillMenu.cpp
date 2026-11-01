@@ -108,8 +108,8 @@ void SkillMenu::refresh() {
     m_lookLabel->setString(fmt::format("Look-ahead: {} frames", c.lookahead).c_str());
     m_deathLabel->setString(fmt::format("Death rate: {:.0f}%", c.deathRate).c_str());
 
-    m_lookSlider->setValue((c.lookahead - 1) / 29.f);
-    m_deathSlider->setValue((c.deathRate - 1.f) / 99.f);
+    m_lookSlider->setValue((c.lookahead - 1) / 59.f);
+    m_deathSlider->setValue(c.deathRate / 100.f);
 
     m_toggles[0]->toggle(c.enabled);
     m_toggles[1]->toggle(c.checkHazards);
@@ -148,12 +148,12 @@ void SkillMenu::onToggle(CCObject* sender) {
 
 void SkillMenu::onLook(CCObject* sender) {
     float v = static_cast<SliderThumb*>(sender)->getValue();
-    skill::settings().lookahead = 1 + static_cast<int>(std::round(v * 29.f));
+    skill::settings().lookahead = 1 + static_cast<int>(std::round(v * 59.f));
     this->markCustom();
 }
 
 void SkillMenu::onDeath(CCObject* sender) {
     float v = static_cast<SliderThumb*>(sender)->getValue();
-    skill::settings().deathRate = 1.f + std::round(v * 99.f);
+    skill::settings().deathRate = std::round(v * 100.f);
     this->markCustom();
 }

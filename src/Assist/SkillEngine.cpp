@@ -82,7 +82,7 @@ bool standingOnSolid(const std::vector<const Obj*>& sl, float x, float y, float 
 // Runs the cube forward with a click at `clickFrame` and reports if it lives.
 SimResult simulate(const Start& s, int clickFrame,
                    const std::vector<const Obj*>& hz, const std::vector<const Obj*>& sl,
-                   const Settings& c, float xEnd) {
+                   const Settings& c, float pad, float xEnd) {
     float x = s.x, y = s.y, vy = s.vy;
     bool grounded = s.grounded, jumped = false;
     const float half = s.half;
@@ -116,7 +116,7 @@ SimResult simulate(const Start& s, int clickFrame,
         }
 
         for (auto o : hz) {
-            if (touches(*o, x - half, y - half, x + half, y + half, c.hazardPadding))
+            if (touches(*o, x - half, y - half, x + half, y + half, pad))
                 return {false, jumped};
         }
 
@@ -191,44 +191,56 @@ Decision evaluate(PlayerObject* p) {
 
     // airborne: only plan if this click would actually become a jump (landing soon)
     if (!s.grounded) {
-        auto r = simulate(s, 0, hz, sl, c, xEnd);
+        auto r = simulate(s, 0, hz, sl, c, 0.f, xEnd);
         if (!r.jumped) return d;   // orb / pad click, leave it alone
     }
 
     const int maxF = N + J;
-    std::vector<char> ok(maxF + 1, 0);
-    for (int f = 0; f <= maxF; ++f) {
-        auto r = simulate(s, f, hz, sl, c, xEnd);
-        ok[f] = (r.alive && r.jumped) ? 1 : 0;
-    }
 
-    // reliability of frame f = triangular-weighted survival of f-J ... f+J.
-    // Frames at the edge of the safe window score low, the middle scores high.
-    auto reliability = [&](int f) {
-        float acc = 0.f, w = 0.f;
-        for (int dl = -J; dl <= J; ++dl) {
-            int ff = std::clamp(f + dl, 0, maxF);
-            float wt = static_cast<float>(J + 1 - std::abs(dl));
-            acc += wt * ok[ff];
-            w += wt;
+    // Rates every click frame for one hazard padding and fills `out`.
+    // Returns false if no frame survives at all with this padding.
+    auto plan = [&](float pad, Decision& out) -> bool {
+        std::vector<char> ok(maxF + 1, 0);
+        for (int f = 0; f <= maxF; ++f) {
+            auto r = simulate(s, f, hz, sl, c, pad, xEnd);
+            ok[f] = (r.alive && r.jumped) ? 1 : 0;
         }
-        return w > 0.f ? acc / w : 0.f;
+
+        // reliability of frame f = triangular-weighted survival of f-J ... f+J.
+        // Frames at the edge of the safe window score low, the middle scores high.
+        auto reliability = [&](int f) {
+            float acc = 0.f, w = 0.f;
+            for (int dl = -J; dl <= J; ++dl) {
+                int ff = std::clamp(f + dl, 0, maxF);
+                float wt = static_cast<float>(J + 1 - std::abs(dl));
+                acc += wt * ok[ff];
+                w += wt;
+            }
+            return w > 0.f ? acc / w : 0.f;
+        };
+
+        float rel0 = reliability(0);
+        int best = 0;
+        float bestRel = rel0;
+        for (int f = 1; f <= N; ++f) {
+            float rel = reliability(f);
+            if (rel > bestRel + 1e-4f) { best = f; bestRel = rel; }
+        }
+        if (bestRel <= 0.f) return false;
+
+        out.risk = 1.f - rel0;
+        out.best = bestRel;
+        out.delay = (out.risk <= c.deathRate / 100.f + 1e-6f) ? 0 : best;
+        return true;
     };
 
-    float rel0 = reliability(0);
-    d.risk = 1.f - rel0;
-    d.best = rel0;
-    if (d.risk * 100.f <= c.deathRate) return d;   // risk is acceptable, don't touch it
-
-    int best = 0;
-    float bestRel = rel0;
-    for (int f = 1; f <= N; ++f) {
-        float rel = reliability(f);
-        if (rel > bestRel + 1e-4f) { best = f; bestRel = rel; }
+    // Full padding first. If the gap is too tight for it (nothing survives),
+    // retry with half padding, then none, so tight spots still get the best frame.
+    const float pads[3] = {c.hazardPadding, c.hazardPadding * 0.5f, 0.f};
+    for (float pad : pads) {
+        if (plan(pad, d)) return d;
     }
-    d.delay = best;
-    d.best = bestRel;
-    return d;
+    return d;   // nothing survives at all: leave the click alone
 }
 
 Stats& stats() { return g_stats; }

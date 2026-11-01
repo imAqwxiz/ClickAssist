@@ -55,9 +55,9 @@ void applyPreset(PresetId id) {
             s.checkHazards = true; s.checkSaws = true; s.checkSolids = true; s.hazardPadding = 1.f;
             break;
         case PresetId::Top1:
-            // everything on, long look-ahead, near-zero risk, padded hazards
-            s.lookahead = 24; s.deathRate = 3.f;  s.samples = 15;
-            s.checkHazards = true; s.checkSaws = true; s.checkSolids = true; s.hazardPadding = 2.5f;
+            // everything on, long look-ahead, zero accepted risk, padded hazards (falls back to less padding in tight gaps)
+            s.lookahead = 40; s.deathRate = 0.f;  s.samples = 21;
+            s.checkHazards = true; s.checkSaws = true; s.checkSolids = true; s.hazardPadding = 3.f;
             break;
         case PresetId::Custom:
             break;
