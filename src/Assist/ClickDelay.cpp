@@ -24,8 +24,8 @@ void clearQueue() {
 }
 
 class $modify(SkillBaseLayer, GJBaseGameLayer) {
-    void processCommands(float dt) {
-        if (!g_queue.empty()) {
+    void processCommands(float dt, bool isHalfTick, bool isLastTick) {
+        if (!isHalfTick && !g_queue.empty()) {
             for (auto& e : g_queue) e.left--;
             g_flushing = true;
             while (!g_queue.empty() && g_queue.front().left <= 0) {
@@ -35,7 +35,7 @@ class $modify(SkillBaseLayer, GJBaseGameLayer) {
             }
             g_flushing = false;
         }
-        GJBaseGameLayer::processCommands(dt);
+        GJBaseGameLayer::processCommands(dt, isHalfTick, isLastTick);
     }
 
     void handleButton(bool down, int button, bool p1) {
